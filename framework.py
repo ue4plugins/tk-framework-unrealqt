@@ -24,7 +24,10 @@ class UnrealQtFramework(sgtk.platform.Framework):
         # Supporting Windows only for now
         pyside_root = None            
         if sys.platform == "win32":
-            pyside_root = os.path.join(self.disk_location, "resources", "pyside2-5.9.0a1")
+            if sys.version_info[0] >= 3:
+                pyside_root = os.path.join(self.disk_location, "resources", "pyside2-5.15.2")
+            else:
+                pyside_root = os.path.join(self.disk_location, "resources", "pyside2-5.9.0a1")
 
         if pyside_root:
             # Add PySide2 path to PYTHONPATH
@@ -38,9 +41,9 @@ class UnrealQtFramework(sgtk.platform.Framework):
                 
                 self.log_debug("Successfully initialized PySide2 '%s' located in %s." 
                                % (PySide2.__version__, PySide2.__file__))
-            except ImportError:
-                pass
-            except Exception, e:
+            except ImportError as e:
+                self.log_warning("Error importing PySide2: %s" % e)        
+            except Exception as e:
                 self.log_warning("Error setting up PySide2. Pyside2-based UI support will not "
                                  "be available: %s" % e)        
 
