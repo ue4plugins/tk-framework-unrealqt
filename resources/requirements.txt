@@ -1,0 +1,3 @@
+## The following requirements were added by pip --freeze:
+
+PySide2==5.15.2
