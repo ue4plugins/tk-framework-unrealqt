@@ -210,7 +210,7 @@ if [ $do_build == 1 ]; then
             mkdir -p ${target}
         fi
         echo "Copying in ${target}"
-        cp -R ./${packagevenv} $target
+        cp -R ./${packagevenv}/ $target
         cd ${target}
         # Do some cleanup
         find . -name "*.pyc" | xargs rm -f
