@@ -34,7 +34,7 @@ jobs:
         python.version: '3.7'
       LinuxPython37:
         platform: 'linux'  # Short name for us
-        imageName: 'ubuntu-16.04'
+        imageName: 'ubuntu-latest'
         python.version: '3.7'
     maxParallel: 1
 
