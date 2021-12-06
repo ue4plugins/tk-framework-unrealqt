@@ -9,12 +9,13 @@ Because Unreal does not include PySide2/Qt distributions but does use its own
 version of Python, we have to distribute full versions for the engine to function.
 """
 
-import sgtk
-import sys
 import os
 import platform
-import site
 import re
+import site
+import sys
+
+import sgtk
 
 
 class UnrealQtFramework(sgtk.platform.Framework):
@@ -23,11 +24,14 @@ class UnrealQtFramework(sgtk.platform.Framework):
     # init and destroy
             
     def init_framework(self):
+        """
+        This framework ships with additional Python packages and tweak the Python
+        paths environment to make these packages available to apps and engines.
+
+        Something similar to what `virtualenv` does is done when this framework is
+        loaded by SG TK.
+        """
         self.log_debug("%s: Initializing UnrealQtFramework..." % self)
-        
-        # This framework ships with additional Python packages
-        # make these packages available to apps and engines using
-        # this framework
 
         # Remap the platform name to our names
         pname = self.platform_name()

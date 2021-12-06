@@ -18,12 +18,12 @@ def setup_render_with_movie_render_queue(output_path, unreal_map_path, sequence_
               with the Movie Render queue is not possible.
     """
     # Check if we can use the Movie render queue, bail out if we can't
-    if "MoviePipelineQueueEngineSubsystem" not in dir(unreal):
+    if not hasattr(unreal, "MoviePipelineQueueEngineSubsystem"):
         unreal.log(
             "Movie Render Queue is not available, Movie queue rendering can't be setup."
         )
         return None
-    if "MoviePipelineAppleProResOutput" not in dir(unreal):
+    if not hasattr(unreal, "MoviePipelineAppleProResOutput"):
         unreal.log(
             "Apple ProRes Media plugin must be loaded to be able to render with the Movie Render Queue, "
             "Movie queue rendering can't be setup."
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     assets_path = os.environ["UNREAL_SG_ASSETS_PATH"]
     turntable_map_path = os.environ["UNREAL_SG_MAP_PATH"]
 
-    # Additional settings to render with the Movie Render Queue
+    # Additional optional settings to render with the Movie Render Queue
     movie_path = os.environ.get("UNREAL_SG_MOVIE_OUTPUT_PATH")
     level_sequence_path = os.environ.get("UNREAL_SG_SEQUENCE_PATH")
 
