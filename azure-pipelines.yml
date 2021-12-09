@@ -26,11 +26,11 @@ jobs:
       # Define all the platform/python version we need
       MacPython37:
         platform: 'osx'  # Short name for us
-        imageName: 'macOS-10.14'
+        imageName: 'macOS-10.15'
         python.version: '3.7'
       WinPython37:
         platform: 'win' # Short name for us
-        imageName: 'vs2017-win2016'
+        imageName: 'windows-2019'
         python.version: '3.7'
       LinuxPython37:
         platform: 'linux'  # Short name for us

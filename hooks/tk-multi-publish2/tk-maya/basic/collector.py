@@ -33,7 +33,10 @@ class MayaSessionCollectorWithSecondaries(HookBaseClass):
         :param parent_item: Parent Item instance
         :returns: Item of type maya.session
         """
-        session_item = super(MayaSessionCollectorWithSecondaries, self).collect_current_maya_session(settings, parent_item)
+        session_item = super(MayaSessionCollectorWithSecondaries, self).collect_current_maya_session(
+            settings,
+            parent_item
+        )
         secondaries_item = session_item.create_item(
             "maya.session.secondaries",
             "Secondary actions",

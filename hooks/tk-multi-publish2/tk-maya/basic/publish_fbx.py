@@ -137,14 +137,29 @@ class MayaFBXPublishPlugin(HookBaseClass):
         :returns: dictionary with boolean keys accepted, required and enabled
         """
 
+        accepted = True
+        publisher = self.parent
+
+        # Check the publish template if one defined
         # If a publish template is configured, disable context change. This
         # is a temporary measure until the publisher handles context switching
         # natively.
-        if settings.get("Publish Template").value:
+        template_name = settings["Publish Template"].value
+        if template_name:
             item.context_change_allowed = False
+            publish_template = publisher.get_template_by_name(template_name)
+            if not publish_template:
+                self.logger.debug(
+                    "The valid publish template could not be determined for the "
+                    "FBX publish.  Not accepting the item."
+                )
+                accepted = False
+
+            # We've validated the publish template. add it to the item properties
+            # for use in subsequent methods
+            item.properties["publish_template"] = publish_template
 
         path = _session_path()
-
         if not path:
             # the session has not been saved before (no path determined).
             # provide a save button. the session will need to be saved before
@@ -153,11 +168,11 @@ class MayaFBXPublishPlugin(HookBaseClass):
                 "The Maya session has not been saved.", extra=_get_save_as_action()
             )
 
-
-        self.logger.info(
-            "Maya '%s' plugin accepted the current Maya session." % (self.name,)
-        )
-        return {"accepted": True, "checked": True}
+        if accepted:
+            self.logger.info(
+                "Maya '%s' plugin accepted the current Maya session." % (self.name,)
+            )
+        return {"accepted": accepted, "checked": True}
 
     def validate(self, settings, item):
         """
@@ -184,22 +199,22 @@ class MayaFBXPublishPlugin(HookBaseClass):
             self.logger.error(error_msg, extra=_get_save_as_action())
             return False
 
-        # ensure we have an updated project root
+        # Ensure we have an updated project root
         project_root = cmds.workspace(q=True, rootDirectory=True)
-        item.properties["project_root"] = project_root
-
         # log if no project root could be determined.
         if not project_root:
-            self.logger.info(
-                "Your session is not part of a maya project.",
+            self.logger.error(
+                "Your session is not part of a Maya project.",
                 extra={
                     "action_button": {
                         "label": "Set Project",
-                        "tooltip": "Set the maya project",
+                        "tooltip": "Set the Maya project",
                         "callback": lambda: mel.eval('setProject ""'),
                     }
                 },
             )
+            return False
+        item.properties["project_root"] = project_root
 
         # ---- check the session against any attached work template
 
@@ -207,72 +222,66 @@ class MayaFBXPublishPlugin(HookBaseClass):
         # separators are appropriate for current os, no double separators,
         # etc.
         path = sgtk.util.ShotgunPath.normalize(path)
-
+        publish_name = os.path.splitext(os.path.basename(path))[0]
         # if the session item has a known work template, see if the path
         # matches. if not, warn the user and provide a way to save the file to
         # a different path
         work_template = item.properties.get("work_template")
-        if work_template:
-            if not work_template.validate(path):
-                self.logger.warning(
-                    "The current session does not match the configured work "
-                    "file template.",
+        publish_template = item.properties.get("publish_template")
+        if work_template and publish_template:
+            # Ensure the fields work for the publish template
+            # This raises an error if the path does not match the template.
+            work_fields = work_template.get_fields(path)
+            missing_keys = publish_template.missing_keys(work_fields)
+            if missing_keys:
+                error_msg = (
+                    "Work file '%s' missing keys required for the "
+                    "publish template: %s" % (path, missing_keys)
+                )
+                self.logger.error(error_msg)
+                return False
+            # Create the publish path by applying the fields. store it in the item's
+            # properties. This is the path we'll create and then publish in the base
+            # publish plugin. Also set the publish_path to be explicit.
+            # NOTE: local_properties is used here as directed in the publisher
+            # docs when there may be more than one plugin operating on the
+            # same item in order for each plugin to have it's own values that
+            # aren't overwritten by the other.
+            item.local_properties["publish_path"] = publish_template.apply_fields(work_fields)
+
+            # use the work file's version number when publishing
+            if "version" in work_fields:
+                item.properties["publish_version"] = work_fields["version"]
+        else:
+            # Derive a publish path from the current scene path
+            workspace = cmds.workspace(q=True, openWorkspace=True)
+            if not workspace:
+                self.logger.error(
+                    "A Maya workspace must be set when no SG TK templates are provided",
                     extra={
                         "action_button": {
-                            "label": "Save File",
-                            "tooltip": "Save the current Maya session to a "
-                            "different file name",
-                            # will launch wf2 if configured
-                            "callback": _get_save_as_action(),
+                            "label": "Set Project",
+                            "tooltip": "Set the Maya project",
+                            # This is a Mel script not available as a Python command.
+                            "callback": lambda: mel.eval('setProject ""'),
                         }
                     },
                 )
-            else:
-                self.logger.debug("Work template configured and matches session file.")
-        else:
-            # We can't do anything without a work template
-            raise ValueError("A work template is required for this plugins.")
+                return False
+            fbx_dir = cmds.workspace(fileRuleEntry="FBX") or "data"
+            # Append a "publishes" folder and get the full path
+            fbx_dir = cmds.workspace(expandName=os.path.join(fbx_dir, "publishes"))
 
-        # ---- see if the version can be bumped post-publish
+            # Build a name from the Maya scene
+            base_name = "%s.fbx" % publish_name
+            publish_path = os.path.join(fbx_dir, base_name)
+            # NOTE: local_properties is used here as directed in the publisher
+            # docs when there may be more than one plugin operating on the
+            # same item in order for each plugin to have it's own values that
+            # aren't overwritten by the other.
+            # Set the publish_path to be explicit.
+            item.local_properties["publish_path"] = publish_path
 
-        # check to see if the next version of the work file already exists on
-        # disk. if so, warn the user and provide the ability to jump to save
-        # to that version now
-        (next_version_path, version) = self._get_next_version_info(path, item)
-        if next_version_path and os.path.exists(next_version_path):
-
-            # determine the next available version_number. just keep asking for
-            # the next one until we get one that doesn't exist.
-            while os.path.exists(next_version_path):
-                (next_version_path, version) = self._get_next_version_info(
-                    next_version_path, item
-                )
-
-            error_msg = "The next version of this file already exists on disk."
-            self.logger.error(
-                error_msg,
-                extra={
-                    "action_button": {
-                        "label": "Save to v%s" % (version,),
-                        "tooltip": "Save to the next available version number, "
-                        "v%s" % (version,),
-                        "callback": lambda: _save_session(next_version_path),
-                    }
-                },
-            )
-            return False
-
-        # ---- populate the necessary properties and call base class validation
-
-        # populate the publish template on the item if found
-        publish_template_setting = settings.get("Publish Template")
-        publish_template = publisher.engine.get_template_by_name(
-            publish_template_setting.value
-        )
-        if publish_template:
-            item.local_properties["publish_template"] = publish_template
-        else:
-            raise ValueError("A publish template is required for this plugins.")
 
         # Set the session path on the item for use by the base plugin validation
         # step.
@@ -283,12 +292,9 @@ class MayaFBXPublishPlugin(HookBaseClass):
         # same item in order for each plugin to have it's own values that
         # aren't overwritten by the other.
         item.local_properties["publish_type"] = "Maya FBX"
-        item.local_properties["publish_name"] = os.path.splitext(
-            os.path.basename(path)
-        )[0]
+        item.local_properties["publish_name"] = publish_name
 
-        # run the base class validation
-        return super(MayaFBXPublishPlugin, self).validate(settings, item)
+        return True
 
     def _copy_work_to_publish(self, settings, item):
         """
@@ -338,7 +344,7 @@ class MayaFBXPublishPlugin(HookBaseClass):
 
         # Store the exported fbx path onto the parent item so other items can
         # retrieve it and use it without having to export themself an fbx.
-        item.parent.properties["exported_fbx_path"]= publish_path
+        item.parent.properties["exported_fbx_path"] = publish_path
 
         # Let the base class register the publish
         super(MayaFBXPublishPlugin, self).publish(settings, item)
@@ -346,7 +352,7 @@ class MayaFBXPublishPlugin(HookBaseClass):
         item.local_properties["sg_publish_data"] = item.properties.sg_publish_data
         # Store the published fbx data onto the parent item so other items can
         # retrieve it and use it without having to export themself an fbx.
-        item.parent.properties["sg_fbx_publish_data"]= item.properties.sg_publish_data
+        item.parent.properties["sg_fbx_publish_data"] = item.properties.sg_publish_data
 
     def finalize(self, settings, item):
         """
