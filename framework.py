@@ -33,6 +33,14 @@ class UnrealQtFramework(sgtk.platform.Framework):
         """
         self.log_debug("%s: Initializing UnrealQtFramework..." % self)
 
+        # Check if PySide is already available, do nothing if it is the case
+        try:
+            from sgtk.platform.qt import QtCore
+            self.log_debug("Qt is already available, not activating any custom package.")
+            return
+        except ImportError as e:
+            self.log_debug("Qt is not available: %s, activating custom package." % e)
+            pass
         # Remap the platform name to our names
         pname = self.platform_name()
 
