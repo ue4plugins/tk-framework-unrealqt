@@ -346,6 +346,16 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
 
     # NOTE: The plugin icon and name are defined by the base file plugin.
 
+    # List of settings to save and their save code
+    _save_settings = (
+        ("Unreal Engine Version", "publish2.unreal_engine_version"),
+        ("Unreal Engine Path", "publish2.unreal_engine_path"),
+        ("Unreal Project Path", "publish2.turntable.unreal_project_path"),
+        ("Turntable Map Path", "publish2.turntable.map_path"),
+        ("Sequence Path", "publish2.turntable.sequence_path"),
+        ("Turntable Assets Path", "publish2.turntable.assets_path"),
+    )
+
     @property
     def description(self):
         """
@@ -563,12 +573,59 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             unreal_versions,
             cur_settings["Unreal Engine Version"],
         )
+        widget.unreal_setup_widget.unreal_engine_widget.set_path(
+            cur_settings["Unreal Engine Path"]
+        )
         widget.unreal_setup_widget.set_unreal_project_path_template(
             cur_settings["Unreal Project Path Template"]
+        )
+        widget.unreal_setup_widget.unreal_project_widget.set_path(
+            cur_settings["Unreal Project Path"]
         )
         widget.unreal_turntable_map_widget.setText(cur_settings["Turntable Map Path"])
         widget.unreal_sequence_widget.setText(cur_settings["Sequence Path"])
         widget.unreal_turntable_asset_widget.setText(cur_settings["Turntable Assets Path"])
+
+    def load_saved_ui_settings(self, settings):
+        """
+        Load saved settings and update the given settings dictionary with them.
+
+        :param settings: A dictionary where keys are settings names and
+                         values Settings instances.
+        """
+        # Retrieve SG utils framework settings module and instantiate a manager
+        fw = self.load_framework("tk-framework-shotgunutils_v5.x.x")
+        module = fw.import_module("settings")
+        settings_manager = module.UserSettings(self.parent)
+
+        # Retrieve saved settings
+        for name, saved_name in self._save_settings:
+            settings[name].value = settings_manager.retrieve(
+                saved_name,
+                settings[name].value,
+                settings_manager.SCOPE_PROJECT,
+            )
+            self.logger.debug("Loaded settings %s" % settings[name])
+
+    def save_ui_settings(self, settings):
+        """
+        Save UI settings.
+
+        :param settings: A dictionary of Settings instances.
+        """
+        # Retrieve SG utils framework settings module and instantiate a manager
+        fw = self.load_framework("tk-framework-shotgunutils_v5.x.x")
+        module = fw.import_module("settings")
+        settings_manager = module.UserSettings(self.parent)
+
+        # Save settings
+        for name, saved_name in self._save_settings:
+            value = settings[name].value
+            settings_manager.store(
+                saved_name,
+                value,
+                settings_manager.SCOPE_PROJECT
+            )
 
     def accept(self, settings, item):
         """
@@ -619,6 +676,8 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             item.context_change_allowed = False
         if accepted:
             self.logger.info("Accepting item %s" % item)
+            self.load_saved_ui_settings(settings)
+
         return {
             "accepted": accepted,
             "checked": True
@@ -755,6 +814,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             return False
         item.properties["turntable_assets_path"] = turntable_assets_path
 
+        self.save_ui_settings(settings)
         return True
 
     def get_unreal_exec_property(self, settings, item):
