@@ -11,6 +11,7 @@ import maya.cmds as cmds
 
 import copy
 import datetime
+import logging
 import os
 import pprint
 import re
@@ -345,6 +346,16 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
 
     # NOTE: The plugin icon and name are defined by the base file plugin.
 
+    # List of settings to save and their save code
+    _save_settings = (
+        ("Unreal Engine Version", "publish2.unreal_engine_version"),
+        ("Unreal Engine Path", "publish2.unreal_engine_path"),
+        ("Unreal Project Path", "publish2.turntable.unreal_project_path"),
+        ("Turntable Map Path", "publish2.turntable.map_path"),
+        ("Sequence Path", "publish2.turntable.sequence_path"),
+        ("Turntable Assets Path", "publish2.turntable.assets_path"),
+    )
+
     @property
     def description(self):
         """
@@ -450,7 +461,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             },
             "Turntable Assets Path": {
                 "type": "string",
-                "default": "/Game/maya_turntable_assets/",  # TODO: make sure the trailing / is not needed.
+                "default": "/Game/maya_turntable_assets",
                 "description": "Unreal output path where the turntable assets will be imported."
             },
         }
@@ -562,12 +573,59 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             unreal_versions,
             cur_settings["Unreal Engine Version"],
         )
+        widget.unreal_setup_widget.unreal_engine_widget.set_path(
+            cur_settings["Unreal Engine Path"]
+        )
         widget.unreal_setup_widget.set_unreal_project_path_template(
             cur_settings["Unreal Project Path Template"]
+        )
+        widget.unreal_setup_widget.unreal_project_widget.set_path(
+            cur_settings["Unreal Project Path"]
         )
         widget.unreal_turntable_map_widget.setText(cur_settings["Turntable Map Path"])
         widget.unreal_sequence_widget.setText(cur_settings["Sequence Path"])
         widget.unreal_turntable_asset_widget.setText(cur_settings["Turntable Assets Path"])
+
+    def load_saved_ui_settings(self, settings):
+        """
+        Load saved settings and update the given settings dictionary with them.
+
+        :param settings: A dictionary where keys are settings names and
+                         values Settings instances.
+        """
+        # Retrieve SG utils framework settings module and instantiate a manager
+        fw = self.load_framework("tk-framework-shotgunutils_v5.x.x")
+        module = fw.import_module("settings")
+        settings_manager = module.UserSettings(self.parent)
+
+        # Retrieve saved settings
+        for name, saved_name in self._save_settings:
+            settings[name].value = settings_manager.retrieve(
+                saved_name,
+                settings[name].value,
+                settings_manager.SCOPE_PROJECT,
+            )
+            self.logger.debug("Loaded settings %s" % settings[name])
+
+    def save_ui_settings(self, settings):
+        """
+        Save UI settings.
+
+        :param settings: A dictionary of Settings instances.
+        """
+        # Retrieve SG utils framework settings module and instantiate a manager
+        fw = self.load_framework("tk-framework-shotgunutils_v5.x.x")
+        module = fw.import_module("settings")
+        settings_manager = module.UserSettings(self.parent)
+
+        # Save settings
+        for name, saved_name in self._save_settings:
+            value = settings[name].value
+            settings_manager.store(
+                saved_name,
+                value,
+                settings_manager.SCOPE_PROJECT
+            )
 
     def accept(self, settings, item):
         """
@@ -597,36 +655,29 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
 
         accepted = True
         publisher = self.parent
-
-        # Ensure a work file template is available on the item
-        work_template = item.properties.get("work_template")
-        if not work_template:
-            self.logger.debug(
-                "A work template is required for the session item in order to "
-                "publish a turntable.  Not accepting the item."
-            )
-            accepted = False
-
-        # Ensure the publish template is defined and valid and that we also have
+        # Check the publish template if one defined
         template_name = settings["Publish Template"].value
-        publish_template = publisher.get_template_by_name(template_name)
-        if not publish_template:
-            self.logger.debug(
-                "The valid publish template could not be determined for the "
-                "turntable.  Not accepting the item."
-            )
-            accepted = False
+        if template_name:
+            publish_template = publisher.get_template_by_name(template_name)
+            if not publish_template:
+                self.logger.debug(
+                    "The valid publish template could not be determined for the "
+                    "turntable.  Not accepting the item."
+                )
+                accepted = False
 
-        # we've validated the publish template. add it to the item properties
-        # for use in subsequent methods
-        item.properties["publish_template"] = publish_template
+            # We've validated the publish template. add it to the item properties
+            # for use in subsequent methods
+            item.properties["publish_template"] = publish_template
 
-        # because a publish template is configured, disable context change. This
-        # is a temporary measure until the publisher handles context switching
-        # natively.
-        item.context_change_allowed = False
+            # Because a publish template is configured, disable context change. This
+            # is a temporary measure until the publisher handles context switching
+            # natively.
+            item.context_change_allowed = False
+        if accepted:
+            self.logger.info("Accepting item %s" % item)
+            self.load_saved_ui_settings(settings)
 
-        self.logger.info("Accepting item %s" % item)
         return {
             "accepted": accepted,
             "checked": True
@@ -659,33 +710,82 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             )
             return False
 
-        # get the normalized path
+        # Get the normalized path
         path = sgtk.util.ShotgunPath.normalize(path)
+        # Store it in properties
+        item.properties["path"] = path
 
         # get the configured work file template
         work_template = item.properties.get("work_template")
         publish_template = item.properties.get("publish_template")
+        if work_template and publish_template:
+            # get the current scene path and extract fields from it using the work
+            # template:
+            work_fields = work_template.get_fields(path)
 
-        # get the current scene path and extract fields from it using the work
-        # template:
-        work_fields = work_template.get_fields(path)
+            # Add additional keys needed by the template
+            if sys.platform == "win32":
+                work_fields["ue_mov_ext"] = "avi"
+            else:
+                work_fields["ue_mov_ext"] = "mov"
 
-        # stash the current scene path in properties for use later
-        item.properties["work_path"] = path
+            # Ensure the fields work for the publish template
+            missing_keys = publish_template.missing_keys(work_fields)
+            if missing_keys:
+                error_msg = "Work file '%s' missing keys required for the " \
+                            "publish template: %s" % (path, missing_keys)
+                self.logger.error(error_msg)
+                return False
+            # Create the publish path by applying the fields. store it in the item's
+            # properties. This is the path we'll create and then publish in the base
+            # publish plugin. Also set the publish_path to be explicit.
+            # NOTE: local_properties is used here as directed in the publisher
+            # docs when there may be more than one plugin operating on the
+            # same item in order for each plugin to have it's own values that
+            # aren't overwritten by the other.
+            item.local_properties["publish_path"] = publish_template.apply_fields(work_fields)
 
-        # Add additional keys needed by the template
-        if sys.platform == "win32":
-            work_fields["ue_mov_ext"] = "avi"
+            # use the work file's version number when publishing
+            if "version" in work_fields:
+                item.properties["publish_version"] = work_fields["version"]
         else:
-            work_fields["ue_mov_ext"] = "mov"
+            # Derive a publish path from the current scene path
+            workspace = cmds.workspace(q=True, openWorkspace=True)
+            if not workspace:
+                self.logger.error(
+                    "A Maya workspace must be set when no SG TK templates are provided",
+                    extra={
+                        "action_button": {
+                            "label": "Set Project",
+                            "tooltip": "Set the Maya project",
+                            # This is a Mel script not available as a Python command.
+                            "callback": lambda: mel.eval('setProject ""'),
+                        }
+                    },
+                )
+                return False
+            movie_dir = cmds.workspace(fileRuleEntry="movie") or "data"
+            # Get the full path. We append a "publishes" folder, otherwise the
+            # base implementation will keep offering movies which are already
+            # published
+            movie_dir = cmds.workspace(expandName=os.path.join(movie_dir, "publishes"))
 
-        # Ensure the fields work for the publish template
-        missing_keys = publish_template.missing_keys(work_fields)
-        if missing_keys:
-            error_msg = "Work file '%s' missing keys required for the " \
-                        "publish template: %s" % (path, missing_keys)
-            self.logger.error(error_msg)
-            return False
+            # Build a name from the Maya scene
+            base_name, _ = os.path.splitext(os.path.basename(path))
+            if sys.platform == "win32":
+                base_name = "%s.avi" % base_name
+            else:
+                base_name = "%s.mov" % base_name
+            publish_path = os.path.join(movie_dir, base_name)
+            # NOTE: local_properties is used here as directed in the publisher
+            # docs when there may be more than one plugin operating on the
+            # same item in order for each plugin to have it's own values that
+            # aren't overwritten by the other.
+            # Set the publish_path to be explicit.
+            item.local_properties["publish_path"] = publish_path
+
+        self.logger.info("Turntable will be published as %s" % item.local_properties["publish_path"])
+        item.local_properties["publish_type"] = "Unreal Turntable Render"
 
         # Validate the Unreal executable and project, stash it in properties
         self.get_unreal_exec_property(settings, item)
@@ -714,21 +814,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             return False
         item.properties["turntable_assets_path"] = turntable_assets_path
 
-        item.properties["path"] = path
-        # Create the publish path by applying the fields. store it in the item's
-        # properties. This is the path we'll create and then publish in the base
-        # publish plugin. Also set the publish_path to be explicit.
-        # NOTE: local_properties is used here as directed in the publisher
-        # docs when there may be more than one plugin operating on the
-        # same item in order for each plugin to have it's own values that
-        # aren't overwritten by the other.
-        item.local_properties["publish_path"] = publish_template.apply_fields(work_fields)
-        item.local_properties["publish_type"] = "Unreal Turntable Render"
-
-        # use the work file's version number when publishing
-        if "version" in work_fields:
-            item.properties["publish_version"] = work_fields["version"]
-
+        self.save_ui_settings(settings)
         return True
 
     def get_unreal_exec_property(self, settings, item):
@@ -854,12 +940,11 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         fbx_folder = temp_folder
 
         # Get the filename from the work file
-        # TODO: double check but it seems path could be used here?
-        work_path = item.properties.get("work_path")
+        work_path = item.properties["path"]
         work_path = os.path.normpath(work_path)
         work_name = os.path.splitext(os.path.basename(work_path))[0]
 
-        # Replace non-word characters in filename, Unreal doesn't like those
+        # Replace non-word characters in filenames, Unreal doesn't like those
         # Substitute '_' instead
         exp = re.compile(r"\W", re.UNICODE)
         work_name = exp.sub("_", work_name)
@@ -868,17 +953,36 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         now = datetime.datetime.now()
         timestamp = str(now.hour) + str(now.minute) + str(now.second)
 
-        # Replace file extension with .fbx and suffix it with "_turntable"
-        fbx_name = work_name + "_" + timestamp + "_turntable.fbx"
-        fbx_output_path = os.path.join(fbx_folder, fbx_name)
+        # Use the Fbx which was published by another item or save one now.
+        published_fbx = item.parent.properties.get("sg_fbx_publish_data")
+        if published_fbx:
+            fbx_published_path = published_fbx["path"]["local_path"]
+            # Check the path: Unreal doesn't like non-word characters in filenames
+            self.logger.info("Using published FBX file %s" % fbx_published_path)
+            if re.search(exp, os.path.splitext(fbx_published_path)[0]):
+                fbx_name = work_name + "_" + timestamp + "_turntable.fbx"
+                fbx_output_path = os.path.join(fbx_folder, fbx_name)
+                # Make a copy of the file
+                self.logger.debug(
+                    "Copying %s to %s" % (
+                        fbx_published_path,
+                        fbx_output_path,
+                    )
+                )
+                shutil.copy(fbx_published_path, fbx_output_path)
+            else:
+                fbx_output_path = fbx_published_path
+        else:
+            # Replace file extension with .fbx and suffix it with "_turntable"
+            fbx_name = "%s_%s_turntable.fbx" % (work_name, timestamp)
+            fbx_output_path = os.path.join(fbx_folder, fbx_name)
 
-        # Export the FBX to the given output path
-        if not self._maya_export_fbx(fbx_output_path):
-            return False
+            # Export the FBX to the given output path
+            if not self._maya_export_fbx(fbx_output_path):
+                return False
 
-        # Keep the fbx path for cleanup at finalize
-        item.properties["temp_fbx_path"] = fbx_output_path
-
+            # Keep the fbx path for cleanup at finalize
+            item.properties["temp_fbx_path"] = fbx_output_path
         # =======================
         # 2. Import the FBX into Unreal.
         # 3. Instantiate the imported asset into a duplicate of the turntable map.
@@ -891,7 +995,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         temp_project_dir = os.path.join(temp_dir, project_folder)
         temp_project_path = os.path.join(temp_project_dir, project_file)
         self.logger.debug("Copying %s to %s" % (unreal_project_path, temp_project_path))
-        shutil.copytree(project_path, os.path.join(temp_dir, project_folder))
+        shutil.copytree(project_path, temp_project_dir)
 
         current_folder = os.path.dirname( __file__ )
         script_path = os.path.abspath(
@@ -1002,7 +1106,28 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
                 "Expected file %s was not generated" % publish_path
             )
         # Publish the movie file to Shotgun
-        super(MayaUnrealTurntablePublishPlugin, self).publish(settings, item)
+        # If we generated the render from a published FBX, add it as dependency.
+        # Note: adding the published path to the item "publish_dependencies" property
+        # does not work when not having a default2 config with defined roots, and it's
+        # not possible to give a list of ids to `publish`, so we hack the parent
+        # sg_publish_data to be able to setup our published id.
+        if published_fbx:
+            parent_had_sg_publish_data = False
+            if "sg_publish_data" in item.parent.properties:
+                parent_sg_publish_data = item.parent.properties.sg_publish_data
+                parent_had_sg_publish_data = True
+            item.parent.properties.sg_publish_data = published_fbx
+            try:
+                super(MayaUnrealTurntablePublishPlugin, self).publish(settings, item)
+            finally:
+                if parent_had_sg_publish_data:
+                    # Restore the value
+                    item.parent.properties.sg_publish_data = parent_sg_publish_data
+                else:
+                    # Removed the new key we added
+                    del item.parent.properties["sg_publish_data"]
+        else:
+            super(MayaUnrealTurntablePublishPlugin, self).publish(settings, item)
         # Save publish data locally on the item to be able to restore it later
         item.local_properties["sg_publish_data"] = item.properties.sg_publish_data
 
@@ -1076,9 +1201,11 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # self._save_to_next_version(item.properties["maya_path"], item, _save_session)
 
         # Delete the exported FBX and scripts from the temp folder
-        temp_folder = item.local_properties.get("temp_folder")
-        if temp_folder:
-            shutil.rmtree(temp_folder)
+        # Unless DEBUG is enabled
+        if self.logger.getEffectiveLevel() > logging.DEBUG:
+            temp_folder = item.local_properties.get("temp_folder")
+            if temp_folder:
+                shutil.rmtree(temp_folder)
 
         # Revive this when Unreal supports spaces in command line Python args
         # fbx_path = item.properties.get("temp_fbx_path")
@@ -1194,7 +1321,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         if os.path.isfile(output_path):
             # Must delete it first, otherwise the Sequencer will add a number in the filename
             try:
-                os.remove(output_filepath)
+                os.remove(output_path)
             except OSError as e:
                 self.logger.debug("Couldn't delete {}. The Sequencer won't be able to output the movie to that file.".format(output_path))
                 return False, None
@@ -1397,6 +1524,12 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
                 fw.disk_location
             )
         )
+
+    def _copy_work_to_publish(self, settings, item):
+        """
+        Override base implementation to do nothing.
+        """
+        pass
 
 def _session_path():
     """
