@@ -187,7 +187,6 @@ class MayaFBXPublishPlugin(HookBaseClass):
         :raises ValueError: For problems which can't be solved in the current session.
         """
 
-        publisher = self.parent
         path = _session_path()
 
         # ---- ensure the session has been saved
@@ -282,7 +281,6 @@ class MayaFBXPublishPlugin(HookBaseClass):
             # Set the publish_path to be explicit.
             item.local_properties["publish_path"] = publish_path
 
-
         # Set the session path on the item for use by the base plugin validation
         # step.
         # NOTE: this path could change prior to the publish phase.
@@ -311,8 +309,6 @@ class MayaFBXPublishPlugin(HookBaseClass):
             instances.
         :param item: Item to process
         """
-
-        publisher = self.parent
 
         # Get the path in a normalized state. no trailing separator, separators
         # are appropriate for current os, no double separators, etc.
@@ -375,6 +371,7 @@ def _session_path():
         path = six.ensure_str(path)
 
     return path
+
 
 def _save_session(path):
     """

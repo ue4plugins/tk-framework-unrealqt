@@ -1,5 +1,5 @@
 # This file is based on templates provided and copyrighted by Autodesk, Inc.
-# This file has been modified by Epic Games, Inc. and is subject to the license 
+# This file has been modified by Epic Games, Inc. and is subject to the license
 # file included in this repository.
 
 """
@@ -22,7 +22,7 @@ class UnrealQtFramework(sgtk.platform.Framework):
 
     ##########################################################################################
     # init and destroy
-            
+
     def init_framework(self):
         """
         This framework ships with additional Python packages and tweak the Python
@@ -35,7 +35,7 @@ class UnrealQtFramework(sgtk.platform.Framework):
 
         # Check if PySide is already available, do nothing if it is the case
         try:
-            from sgtk.platform.qt import QtCore
+            from sgtk.platform.qt import QtCore  # noqa
             self.log_debug("Qt is already available, not activating any custom package.")
             return
         except ImportError as e:

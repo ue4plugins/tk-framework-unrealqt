@@ -5,9 +5,9 @@
 import sgtk
 from tank_vendor import six
 from sgtk.platform.qt import QtGui, QtCore
-from sgtk.platform import SoftwareVersion
 
 import maya.cmds as cmds
+import maya.mel as mel
 
 import copy
 import datetime
@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from six.moves.urllib import parse
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
@@ -131,7 +132,7 @@ class BrowsablePathWidget(QtGui.QFrame):
         Open the current file in an external application.
         """
         current_path = self.get_path()
-        engine = sgtk.platform.current_engine()
+
         # Would be awesome to use launch app, but launch_from_path does not work
         # in SotfwareEntity mode.
 #        if engine and "tk-multi-launchapp" in engine.apps:
@@ -362,9 +363,6 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         Verbose, multi-line description of what the plugin does. This can
         contain simple html for formatting.
         """
-
-        loader_url = "https://support.shotgunsoftware.com/hc/en-us/articles/219033078"
-
         return """
         <p>This plugin renders a turntable of the asset for the current session
         in Unreal Engine.  The asset will be exported to FBX and imported into
@@ -373,6 +371,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         the turntable render will be published to Shotgun and submitted for review
         as a Version.</p>
         """
+
     @property
     def icon(self):
         """
@@ -515,7 +514,6 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         settings_frame.unreal_turntable_asset_label = QtGui.QLabel("Unreal Turntable Assets Path:")
         settings_frame.unreal_turntable_asset_widget = QtGui.QLineEdit("")
 
-
         # Create the layout to use within the QFrame
         settings_layout = QtGui.QVBoxLayout()
         settings_layout.addWidget(settings_frame.description_label)
@@ -549,9 +547,9 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             "Turntable Map Path": six.ensure_str(widget.unreal_turntable_map_widget.text()),
             "Sequence Path": six.ensure_str(widget.unreal_sequence_widget.text()),
             "Turntable Assets Path": six.ensure_str(widget.unreal_turntable_asset_widget.text()),
-            #"HDR Path": widget.hdr_image_template_widget.get_path(),
-            #"Start Frame": widget.start_frame_spin_box.value(),
-            #"End Frame": widget.end_frame_spin_box.value(),
+            # "HDR Path": widget.hdr_image_template_widget.get_path(),
+            # "Start Frame": widget.start_frame_spin_box.value(),
+            # "End Frame": widget.end_frame_spin_box.value(),
         }
         return settings
 
@@ -898,7 +896,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             raise RuntimeError(
                 "Unable to build an Unreal project path from %s with Unreal version %s" % (
                     unreal_project_path_template,
-                    unreal_engine_version,
+                    item.properties["unreal_engine_version"],
                 )
             )
         if not os.path.isfile(unreal_project_path):
@@ -906,6 +904,39 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
                 "Unreal project not found at %s" % unreal_project_path
             )
         item.properties["unreal_project_path"] = unreal_project_path
+
+    def _get_local_path(self, published_file):
+        """
+        Returns the local path for the given published file.
+
+        :returns: The local path to the published file.
+        :raises ValueError: If no local path can be retrieved.
+        """
+        if "local_path" in published_file["path"]:
+            return published_file["path"]["local_path"]
+
+        if "url" in published_file["path"]:
+            url = published_file["path"]["url"]
+            parsed = parse.urlparse(url)
+            if parsed.scheme == "file":
+                # Copied from
+                # https://github.com/shotgunsoftware/tk-core/blob/2fc8287a19f8f002e23101836bafba0ec0de9dc9/python/tank/util/shotgun/publish_resolve.py#L311
+                if parsed.netloc:
+                    # UNC path
+                    path = parse.unquote(
+                        "//%s%s" % (parsed.netloc, parsed.path)
+                    )
+                else:
+                    path = parse.unquote(parsed.path)
+                    # Deal with bad paths being set
+                    # file:///C:/Users/me/default/data/publishes/Trooper_Full_NoKnife_2.fbx
+                    # Leading to /C:/Users/me/default/data/publishes/Trooper_Full_NoKnife_2.fbx
+                    # as path.
+                    if re.match("^/[A-Za-z]:/", path):
+                        path = path[1:]
+                return path
+
+        raise ValueError("Unable to get a local path from %s" % published_file)
 
     def publish(self, settings, item):
         """
@@ -956,7 +987,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # Use the Fbx which was published by another item or save one now.
         published_fbx = item.parent.properties.get("sg_fbx_publish_data")
         if published_fbx:
-            fbx_published_path = published_fbx["path"]["local_path"]
+            fbx_published_path = self._get_local_path(published_fbx)
             # Check the path: Unreal doesn't like non-word characters in filenames
             self.logger.info("Using published FBX file %s" % fbx_published_path)
             if re.search(exp, os.path.splitext(fbx_published_path)[0]):
@@ -997,7 +1028,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         self.logger.debug("Copying %s to %s" % (unreal_project_path, temp_project_path))
         shutil.copytree(project_path, temp_project_dir)
 
-        current_folder = os.path.dirname( __file__ )
+        current_folder = os.path.dirname(__file__)
         script_path = os.path.abspath(
             os.path.join(
                 current_folder,
@@ -1024,6 +1055,8 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             )
             importer_destination = os.path.join(self.temp_folder, "unreal_importer.py")
             shutil.copy(importer_path, importer_destination)
+        # UE5 does some weird things with \ so let's replace them with /
+        script_path = script_path.replace("\\", "/")
 
         if " " in temp_project_path:
             temp_project_path = '"{}"'.format(temp_project_path)
@@ -1033,15 +1066,17 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # on the command line.
         run_env = copy.copy(os.environ)
         # Environment variables for turntable script
+        # Make sure they are strings and not unicode with py2, otherwise
+        # "environment can only contain strings" erors will happen.
         extra_env = {
             # The FBX to import into Unreal
-            "UNREAL_SG_FBX_OUTPUT_PATH": fbx_output_path,
+            "UNREAL_SG_FBX_OUTPUT_PATH": six.ensure_str(fbx_output_path),
             # The Unreal content browser folder where the asset will be imported into
-            "UNREAL_SG_ASSETS_PATH": turntable_assets_path,
+            "UNREAL_SG_ASSETS_PATH": six.ensure_str(turntable_assets_path),
             # The Unreal turntable map to duplicate where the asset will be instantiated into
-            "UNREAL_SG_MAP_PATH": turntable_map_path,
-            "UNREAL_SG_SEQUENCE_PATH": sequence_path,
-            "UNREAL_SG_MOVIE_OUTPUT_PATH": publish_path,
+            "UNREAL_SG_MAP_PATH": six.ensure_str(turntable_map_path),
+            "UNREAL_SG_SEQUENCE_PATH": six.ensure_str(sequence_path),
+            "UNREAL_SG_MOVIE_OUTPUT_PATH": six.ensure_str(publish_path),
         }
         self.logger.info("Adding %s to the environment" % extra_env)
         run_env.update(extra_env)
@@ -1079,7 +1114,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             )
             # Workaround for Level Sequencer only rendering avi on Windows and Movie Queue rendering
             # mov on all platforms
-            publish_path = re.sub("\.avi$", ".mov", publish_path)
+            publish_path = re.sub(r"\.avi$", ".mov", publish_path)
             item.local_properties["publish_path"] = publish_path
             self._unreal_render_movie_with_movie_render_queue(
                 unreal_exec_path,
@@ -1132,8 +1167,6 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         item.local_properties["sg_publish_data"] = item.properties.sg_publish_data
 
         # Create a Version entry linked with the new publish
-        publish_name = item.properties.get("publish_name")
-
         # Populate the version data to send to SG
         self.logger.info("Creating Version...")
         version_data = {
@@ -1153,7 +1186,8 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
                     "label": "Version Data",
                     "tooltip": "Show the complete Version data dictionary",
                     "text": "<pre>%s</pre>" % (
-                    pprint.pformat(version_data),)
+                        pprint.pformat(version_data),
+                    )
                 }
             }
         )
@@ -1168,7 +1202,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # Ensure the path is utf-8 encoded to avoid issues with
         # the shotgun api
         upload_path = six.ensure_text(
-            item.properties.sg_publish_data["path"]["local_path"]
+            self._get_local_path(item.properties.sg_publish_data)
         )
 
         # Upload the file to SG
@@ -1236,7 +1270,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             # import maya.mel as mel
             # mel.eval('FBXExport -f "fbx_output_path"')
             cmds.FBXExport('-f', fbx_output_path)
-        except:
+        except Exception:
             self.logger.error("Could not export scene to FBX")
             return False
 
@@ -1322,7 +1356,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             # Must delete it first, otherwise the Sequencer will add a number in the filename
             try:
                 os.remove(output_path)
-            except OSError as e:
+            except OSError:
                 self.logger.debug("Couldn't delete {}. The Sequencer won't be able to output the movie to that file.".format(output_path))
                 return False, None
 
@@ -1382,7 +1416,6 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
                   string representing the path of the generated movie file
         """
         output_folder, output_file = os.path.split(output_path)
-        movie_name = os.path.splitext(output_file)[0]
 
         cmdline_args = self._get_unreal_base_command(
             unreal_exec_path,
@@ -1434,7 +1467,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             "-MoviePipelineConfig=\"%s\"" % manifest_path,
         ])
         self.logger.info("Running %s" % cmdline_args)
-        ret = subprocess.call(cmdline_args)
+        subprocess.call(cmdline_args)
         return os.path.isfile(output_path), output_path
 
     def get_unreal_versions(self):
@@ -1506,7 +1539,6 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         short_version = ".".join(unreal_engine_version.split(".")[:2])
         # Evaluate the "template"
         engine = sgtk.platform.current_engine()
-        engine_path = os.path.join(engine.disk_location, "hooks")
         hooks_folder = engine.sgtk.pipeline_configuration.get_hooks_location()
         fw = self.load_framework("tk-framework-unrealqt_v1.x.x")
         return os.path.normpath(
@@ -1530,6 +1562,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         Override base implementation to do nothing.
         """
         pass
+
 
 def _session_path():
     """
