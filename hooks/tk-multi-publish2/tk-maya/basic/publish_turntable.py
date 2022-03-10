@@ -566,11 +566,17 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             # We do not allow editing multiple items
             raise NotImplementedError
         cur_settings = settings[0]
-        unreal_versions = self.get_unreal_versions()
-        widget.unreal_setup_widget.populate_unreal_versions(
-            unreal_versions,
-            cur_settings["Unreal Engine Version"],
-        )
+        try:
+            unreal_versions = self.get_unreal_versions()
+            widget.unreal_setup_widget.populate_unreal_versions(
+                unreal_versions,
+                cur_settings["Unreal Engine Version"],
+            )
+        except sgtk.platform.TankMissingEngineError:
+            self.logger.warning(
+                "Unable to retrieve existing Unreal versions from an installed TK Unreal Engine"
+            )
+
         widget.unreal_setup_widget.unreal_engine_widget.set_path(
             cur_settings["Unreal Engine Path"]
         )
@@ -1480,9 +1486,20 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         :returns: A list of TK software versions.
         """
 
-        # Create a launcher for the current context
+        # Create a launcher.
+        # Since we only care about Unreal paths, we use the current project
+        # context to retrieve the paths. Otherwise it would require having a valid
+        # tk-unreal context matching the current one.
         engine = sgtk.platform.current_engine()
-        software_launcher = sgtk.platform.create_engine_launcher(engine.sgtk, engine.context, "tk-unreal")
+        project_context = engine.sgtk.context_from_entity_dictionary(
+            engine.context.project
+        )
+
+        software_launcher = sgtk.platform.create_engine_launcher(
+            engine.sgtk,
+            project_context,
+            "tk-unreal"
+        )
 
         # Discover which versions of Unreal are available
         software_versions = software_launcher.scan_software()
