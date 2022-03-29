@@ -1,4 +1,4 @@
-# Copyright 2018 Epic Games, Inc. 
+# Copyright 2018 Epic Games, Inc.
 
 # Setup the asset in the turntable level for rendering
 
@@ -38,25 +38,26 @@ def setup_render_with_movie_render_queue(output_path, unreal_map_path, sequence_
     queue = qsub.get_queue()
     job = queue.allocate_new_job(unreal.MoviePipelineExecutorJob)
     job.sequence = unreal.SoftObjectPath(sequence_path)
-    job.map =  unreal.SoftObjectPath(unreal_map_path)
+    job.map = unreal.SoftObjectPath(unreal_map_path)
     # Set settings
     config = job.get_configuration()
     output_setting = config.find_or_add_setting_by_class(unreal.MoviePipelineOutputSetting)
     # https://docs.unrealengine.com/4.26/en-US/PythonAPI/class/MoviePipelineOutputSetting.html?highlight=setting#unreal.MoviePipelineOutputSetting
-    output_setting.output_directory =  unreal.DirectoryPath(output_folder)
+    output_setting.output_directory = unreal.DirectoryPath(output_folder)
     output_setting.output_resolution = unreal.IntPoint(1280, 720)
     output_setting.file_name_format = movie_name
     output_setting.override_existing_output = True  # Overwrite existing files
     # Render to a movie
-    mov_setting = config.find_or_add_setting_by_class(unreal.MoviePipelineAppleProResOutput)
+    config.find_or_add_setting_by_class(unreal.MoviePipelineAppleProResOutput)
     # TODO: check which codec we should use.
     # Default rendering
-    render_pass = config.find_or_add_setting_by_class(unreal.MoviePipelineDeferredPassBase)
+    config.find_or_add_setting_by_class(unreal.MoviePipelineDeferredPassBase)
     # Additional pass with detailed lighting?
     # render_pass = config.find_or_add_setting_by_class(unreal.MoviePipelineDeferredPass_DetailLighting)
     _, manifest_path = unreal.MoviePipelineEditorLibrary.save_queue_to_manifest_file(queue)
     unreal.log("Saved rendering manifest to %s" % manifest_path)
     return manifest_path
+
 
 def setup_turntable(fbx_file_path, assets_path, turntable_map_path):
     """
@@ -69,7 +70,6 @@ def setup_turntable(fbx_file_path, assets_path, turntable_map_path):
     """
     # Import the FBX into Unreal using the unreal_importer script
     current_folder = os.path.dirname(__file__)
-    
     if current_folder not in sys.path:
         sys.path.append(current_folder)
     # TODO: check if there is any reason to keep this in another .py file
@@ -82,7 +82,7 @@ def setup_turntable(fbx_file_path, assets_path, turntable_map_path):
     unreal.log("Loading map %s..." % turntable_map_path)
     # Load the turntable map where to instantiate the imported asset
     world = unreal.EditorLoadingAndSavingUtils.load_map(turntable_map_path)
-    
+
     if not world:
         unreal.error("Unable to load map %s" % turntable_map_path)
         return
@@ -94,27 +94,27 @@ def setup_turntable(fbx_file_path, assets_path, turntable_map_path):
         if level_actor.get_actor_label() == "turntable":
             turntable_actor = level_actor
             break
-            
+
     if not turntable_actor:
         return
-        
+
     # Destroy any actors attached to the turntable (attached for a previous render)
     for attached_actor in turntable_actor.get_attached_actors():
         unreal.EditorLevelLibrary.destroy_actor(attached_actor)
-        
+
     # Derive the imported asset path from the given FBX filename and content browser path
     fbx_filename = os.path.basename(fbx_file_path)
     asset_name = os.path.splitext(fbx_filename)[0]
     # The path here is not a file path, it is an Unreal path so '/' is always used.
-    asset_path_to_load =  "%s/%s" % (assets_path, asset_name)
-    
+    asset_path_to_load = "%s/%s" % (assets_path, asset_name)
+
     # Load the asset to spawn it at origin
     asset = unreal.EditorAssetLibrary.load_asset(asset_path_to_load)
     if not asset:
         return
-        
+
     actor = unreal.EditorLevelLibrary.spawn_actor_from_object(asset, unreal.Vector(0, 0, 0))
-    
+
     # Scale the actor to fit the frame, which is dependent on the settings of the camera used in the turntable sequence
     # The scale values are based on a volume that fits safely in the frustum of the camera and account for the frame ratio
     # and must be tweaked if the camera settings change
@@ -124,11 +124,11 @@ def setup_turntable(fbx_file_path, assets_path, turntable_map_path):
     scale_z = 200 / bounds.z
     scale = min(scale_x, scale_y, scale_z)
     actor.set_actor_scale3d(unreal.Vector(scale, scale, scale))
-    
+
     # Offset the actor location so that it rotates around its center
     origin = origin * scale
     actor.set_actor_location(unreal.Vector(-origin.x, -origin.y, -origin.z), False, True)
-    
+
     # Attach the newly spawned actor to the turntable
     actor.attach_to_actor(turntable_actor, "", unreal.AttachmentRule.KEEP_WORLD, unreal.AttachmentRule.KEEP_WORLD, unreal.AttachmentRule.KEEP_WORLD, False)
 
@@ -140,6 +140,7 @@ def setup_turntable(fbx_file_path, assets_path, turntable_map_path):
     unreal.EditorLoadingAndSavingUtils.save_map(world, world.get_path_name())
     unreal.log("Turntable setup done.")
     return world.get_path_name()
+
 
 if __name__ == "__main__":
     # Script arguments must be, in order:

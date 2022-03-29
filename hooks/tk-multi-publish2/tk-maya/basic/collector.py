@@ -21,7 +21,6 @@ class MayaSessionCollectorWithSecondaries(HookBaseClass):
         collector: "{self}/collector.py:{engine}/tk-multi-publish2/basic/collector.py:{config}/tk-multi-publish2/tk-maya/basic/collector.py"
     """
 
-
     def collect_current_maya_session(self, settings, parent_item):
         """
         Creates an item that represents the current maya session.

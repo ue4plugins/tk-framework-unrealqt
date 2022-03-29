@@ -1,19 +1,21 @@
-# Copyright 2018 Epic Games, Inc. 
+# Copyright 2018 Epic Games, Inc.
 
 import unreal
-import os
+import re
 import sys
 
 """
 Functions to import FBX into Unreal
 """
 
+
 def _sanitize_name(name):
     # Remove the default Shotgun versioning number if found (of the form '.v001')
     name_no_version = re.sub(r'.v[0-9]{3}', '', name)
-    
+
     # Replace any remaining '.' with '_' since they are not allowed in Unreal asset names
     return name_no_version.replace('.', '_')
+
 
 def _generate_fbx_import_task(
     filename,
@@ -36,11 +38,11 @@ def _generate_fbx_import_task(
     task = unreal.AssetImportTask()
     task.filename = filename
     task.destination_path = destination_path
-    
+
     # By default, destination_name is the filename without the extension
     if destination_name is not None:
         task.destination_name = destination_name
-        
+
     task.replace_existing = replace_existing
     task.automated = automated
     task.save = save
@@ -49,7 +51,7 @@ def _generate_fbx_import_task(
     task.options.import_materials = materials
     task.options.import_textures = textures
     task.options.import_as_skeletal = as_skeletal
-    
+
     task.options.static_mesh_import_data.combine_meshes = True
 
     task.options.mesh_type_to_import = unreal.FBXImportType.FBXIT_STATIC_MESH
@@ -57,6 +59,7 @@ def _generate_fbx_import_task(
         task.options.mesh_type_to_import = unreal.FBXImportType.FBXIT_SKELETAL_MESH
 
     return task
+
 
 def import_fbx(filename, destination_path):
     """
@@ -68,8 +71,10 @@ def import_fbx(filename, destination_path):
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(tasks)
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(False, True)
 
+
 def main(argv):
     import_fbx(*argv)
+
 
 if __name__ == "__main__":
     # Script arguments must be, in order:
