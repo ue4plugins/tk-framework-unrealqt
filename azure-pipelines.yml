@@ -1,0 +1,139 @@
+# We want builds to trigger for 3 reasons:
+# - The master branch sees new commits
+# - Each PR should get rebuilt when commits are added to it.
+# - When we tag something
+trigger:
+  branches:
+    include:
+    - master
+  tags:
+    include:
+    # Tags must start with "v"
+    - v*
+pr:
+  branches:
+    include:
+    - "*"
+
+# The github_ci_token variable is defined in the Azure Pipeline web page as a
+# secret variable and is a github personal token.
+
+jobs:
+
+- job: 'Build'
+  strategy:
+    matrix:
+      # Define all the platform/python version we need
+      MacPython37:
+        platform: 'osx'  # Short name for us
+        imageName: 'macOS-10.15'
+        python.version: '3.7'
+      WinPython37:
+        platform: 'win' # Short name for us
+        imageName: 'windows-2019'
+        python.version: '3.7'
+      LinuxPython37:
+        platform: 'linux'  # Short name for us
+        imageName: 'ubuntu-latest'
+        python.version: '3.7'
+    maxParallel: 1
+
+  pool:
+    # Retrieve the value set by the strategy above
+    vmImage: $(imageName)
+
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(python.version)'
+      architecture: 'x64'
+
+  - script: |
+      python -m pip install --upgrade pip
+    displayName: 'Install dependencies'
+
+  # Not needed for Python 3, virtual env are built with python3 -m venv
+  - script: |
+      pip install virtualenv
+    condition: eq( variables['python.version'], '2.7' )
+    displayName: 'Install virtualenv'
+
+  # Couldn't get the script to be found using a bash task.
+  - script: |
+      ./build_packages.sh -b
+    workingDirectory: "resources"
+    displayName: 'Build'
+    env:
+      # Pass the variable into the environment
+      GITHUB_CI_TOKEN: $(github_ci_token)
+    condition: in( variables['Agent.OS'], 'Darwin', 'Linux' )
+
+  # Couldn't get the script to be found using a bash task.
+  - script: |
+      bash.exe ./build_packages.sh -b
+    workingDirectory: resources
+    displayName: 'Build Windows'
+    env:
+      # Pass the variable into the environment
+      GITHUB_CI_TOKEN: $(github_ci_token)
+    condition: eq( variables['Agent.OS'], 'Windows_NT' )
+
+  # Delete files
+  # Delete folders, or files matching a pattern
+  - task: DeleteFiles@1
+    inputs:
+      Contents: |
+        .git
+        resources/packagevenv_osx_2
+        resources/packagevenv_osx_3
+        resources/packagevenv_windows_2
+        resources/packagevenv_windows_3
+        resources/packagevenv_linux_2
+        resources/packagevenv_linux_3
+
+  # Archive files
+  # Compress files into .7z, .tar.gz, or .zip
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: '$(Build.SourcesDirectory)'
+      includeRootFolder: false
+      archiveType: 'zip' # Options: zip, 7z, tar, wim
+      #tarCompression: 'gz' # Optional. Options: gz, bz2, xz, none
+      # archive name will be something like v2.1.2-py2.7-osx.zip
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.SourceBranchName)-py$(python.version)-$(platform).zip'
+      replaceExistingArchive: true
+      verbose: true
+      #quiet: # Optional
+
+  - bash: |
+      echo Source branch is ${BUILD_SOURCEBRANCHNAME} for ${PLATFORM}
+    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+
+  # Create, edit, or delete a GitHub release
+  - task: GitHubRelease@0
+    displayName: 'Create GitHub Release'
+    inputs:
+      # Note: the service connection needs to be created manually with curl
+      # not from the Azure web UI
+      # https://github.com/microsoft/azure-pipelines-tasks/issues/11558
+      gitHubConnection: "Github release"
+      repositoryName: '$(Build.Repository.Name)'
+      action: 'edit'
+      target: '$(Build.SourceVersion)' # Required when action == Create || Action == Edit
+      tagSource: 'auto' # Required when action == Create# Options: auto, manual
+      assets: '$(Build.ArtifactStagingDirectory)/$(Build.SourceBranchName)-py$(python.version)-$(platform).zip'
+      assetUploadMode: 'replace' # Optional. Options: delete, replace
+      tag: '$(Build.SourceBranchName)'
+        #tagPattern: # Optional
+        #tag: # Required when action == Edit || Action == Delete || TagSource == Manual
+        #title: # Optional
+        #releaseNotesSource: 'file' # Optional. Options: file, input
+        #releaseNotesFile: # Optional
+        #releaseNotes: # Optional
+        #isDraft: false # Optional
+        #isPreRelease: false # Optional
+        #addChangeLog: true # Optional
+        #compareWith: 'lastFullRelease' # Required when addChangeLog == True. Options: lastFullRelease, lastRelease, lastReleaseByTag
+        #releaseTag: # Required when compareWith == LastReleaseByTag
+    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+
