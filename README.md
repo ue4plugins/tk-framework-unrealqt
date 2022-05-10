@@ -59,15 +59,24 @@ frameworks:
 - If you're using a local descriptor (dev or path) you need to build the PySide2 libraries
 yourself. See [building the PySide2 libraries locally](#building-the-pyside2-libraries-locally).
 
-- If you're using a remote descriptor, just in time download must be added so these binaries are downloaded in SG TK bootstrap process. The provided [bootstrap.py](hooks/core/bootstrap.py) script implements just in time downloads from Github releases with a `git` descriptor:
+- If you're using a remote descriptor, just in time download must be added so these binaries are downloaded in SG TK bootstrap process. The provided [bootstrap.py](hooks/core/bootstrap.py) script implements just in time downloads from Github releases with a `git` or a `github_release` descriptor:
    - Copy the `hooks/core/bootstrap.py` file to your config `core/hooks/bootstrap.py`
 hook.
    - Use a `git` descriptor for the framework, e.g.:
       ```
       tk-framework-unrealqt_v1.x.x:
         location:
-          version: v1.2.5
+          version: v1.3.0
           type: git
           path: git@github.com:ue4plugins/tk-framework-unrealqt.git
+      ```
+   - Or use a `github_release` descriptor for the framework, e.g.:
+      ```
+      tk-framework-unrealqt_v1.x.x:
+        location:
+          version: v1.3.0
+          type: github_release
+          organization: ue4plugins
+          repository: tk-framework-unrealqt
       ```
 
