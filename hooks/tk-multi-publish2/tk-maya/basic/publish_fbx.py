@@ -157,7 +157,7 @@ class MayaFBXPublishPlugin(HookBaseClass):
 
             # We've validated the publish template. add it to the item properties
             # for use in subsequent methods
-            item.properties["publish_template"] = publish_template
+            item.local_properties["publish_template"] = publish_template
 
         path = _session_path()
         if not path:
@@ -226,7 +226,7 @@ class MayaFBXPublishPlugin(HookBaseClass):
         # matches. if not, warn the user and provide a way to save the file to
         # a different path
         work_template = item.properties.get("work_template")
-        publish_template = item.properties.get("publish_template")
+        publish_template = item.local_properties.get("publish_template")
         if work_template and publish_template:
             # Ensure the fields work for the publish template
             # This raises an error if the path does not match the template.
@@ -235,7 +235,7 @@ class MayaFBXPublishPlugin(HookBaseClass):
             if missing_keys:
                 error_msg = (
                     "Work file '%s' missing keys required for the "
-                    "publish template: %s" % (path, missing_keys)
+                    "publish template %s: %s" % (path, publish_template, missing_keys)
                 )
                 self.logger.error(error_msg)
                 return False

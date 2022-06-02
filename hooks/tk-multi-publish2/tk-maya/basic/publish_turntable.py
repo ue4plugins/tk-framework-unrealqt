@@ -672,7 +672,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
 
             # We've validated the publish template. add it to the item properties
             # for use in subsequent methods
-            item.properties["publish_template"] = publish_template
+            item.local_properties["publish_template"] = publish_template
 
             # Because a publish template is configured, disable context change. This
             # is a temporary measure until the publisher handles context switching
@@ -721,7 +721,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
 
         # get the configured work file template
         work_template = item.properties.get("work_template")
-        publish_template = item.properties.get("publish_template")
+        publish_template = item.local_properties.get("publish_template")
         if work_template and publish_template:
             # get the current scene path and extract fields from it using the work
             # template:
