@@ -258,20 +258,21 @@ class UnrealSetupWidget(QtGui.QFrame):
         :param unreal_versions: A list of :class:`SoftwareVersion` instances.
         :param current_version: An Unreal version number, as a string.
         """
+        # See if we can match with just a major.minor
+        short_current_version = _short_version(current_version)
         for i, unreal_version in enumerate(unreal_versions):
             self.unreal_engine_versions_widget.addItem(
                 unreal_version.display_name,
                 userData=unreal_version,
             )
-            if unreal_version.version == current_version:
+            short_version = _short_version(unreal_version.version)
+            if short_version == short_current_version:
                 self.unreal_engine_versions_widget.setCurrentIndex(
                     i,
                 )
         sel = self.unreal_engine_versions_widget.currentIndex()
         if sel != -1:
-            self.unreal_engine_widget.combo_box.lineEdit().setText(
-                self.unreal_engine_versions_widget.itemData(sel).path
-            )
+            self._current_unreal_version_changed(sel)
 
     def set_unreal_project_path_template(self, project_path_template):
         """
@@ -566,6 +567,18 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             # We do not allow editing multiple items
             raise NotImplementedError
         cur_settings = settings[0]
+
+        # Set the paths first, they can be changed when matching UE versions below.
+        widget.unreal_setup_widget.unreal_engine_widget.set_path(
+            cur_settings["Unreal Engine Path"]
+        )
+        widget.unreal_setup_widget.set_unreal_project_path_template(
+            cur_settings["Unreal Project Path Template"]
+        )
+        widget.unreal_setup_widget.unreal_project_widget.set_path(
+            cur_settings["Unreal Project Path"]
+        )
+
         try:
             unreal_versions = self.get_unreal_versions()
             widget.unreal_setup_widget.populate_unreal_versions(
@@ -577,15 +590,6 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
                 "Unable to retrieve existing Unreal versions from an installed TK Unreal Engine"
             )
 
-        widget.unreal_setup_widget.unreal_engine_widget.set_path(
-            cur_settings["Unreal Engine Path"]
-        )
-        widget.unreal_setup_widget.set_unreal_project_path_template(
-            cur_settings["Unreal Project Path Template"]
-        )
-        widget.unreal_setup_widget.unreal_project_widget.set_path(
-            cur_settings["Unreal Project Path"]
-        )
         widget.unreal_turntable_map_widget.setText(cur_settings["Turntable Map Path"])
         widget.unreal_sequence_widget.setText(cur_settings["Sequence Path"])
         widget.unreal_turntable_asset_widget.setText(cur_settings["Turntable Assets Path"])
@@ -840,6 +844,8 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # Validate the Unreal executable and project, stash in properties
         unreal_exec_path = settings["Unreal Engine Path"].value
         unreal_engine_version = settings["Unreal Engine Version"].value
+        # See if we can match with just a major.minor
+        short_engine_version = _short_version(unreal_engine_version)
         if not unreal_exec_path:
             # The path was not explicitely set, either from settings or the UI,
             # compute one from detected Unreal versions and the default version
@@ -853,9 +859,10 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             unreal_exec_path = None
 
             for unreal_version in unreal_versions:
-                if unreal_version.version == unreal_engine_version:
+                short_version = _short_version(unreal_version.version)
+                if short_version == short_engine_version:
                     self.logger.info(
-                        "Found matching Unreal version %s for %s" % (unreal_version, unreal_engine_version)
+                        "Found matching Unreal version %s for %s" % (unreal_version, short_engine_version)
                     )
                     unreal_exec_path = unreal_version.path
                     break
@@ -1579,6 +1586,20 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         Override base implementation to do nothing.
         """
         pass
+
+def _short_version(version):
+    """
+    Return a short major.minor version for the given version.
+
+    Return the given version if a major and minor can't be extracted.
+
+    :param str version: A version, as string, e.g. 5.0.2.
+    :returns: A string.
+    """
+    parts = version.split(".", 2)
+    if len(parts) > 2:
+         return ".".join(parts[:2])
+    return version
 
 
 def _session_path():
