@@ -75,7 +75,7 @@ class UnrealQtFramework(sgtk.platform.Framework):
                     "lib"
                 )
             )
-            python_pattern = r"^python%d\.\d$" % python_major
+            python_pattern = r"^python%d\.\d+$" % python_major
             for folder in lib_folders:
                 if re.match(python_pattern, folder):
                     break
