@@ -133,8 +133,6 @@ echo "Detecting Python version..."
 python_version=$($python_cmd --version 2>&1)
 # 2 or 3
 python_major_version=${python_version:7:1}
-# 2 or 3
-python_major_version=${python_version:7:1}
 # Remove patch number from Python 3.9.17
 no_patch=${python_version%\.*}
 # 3.9
