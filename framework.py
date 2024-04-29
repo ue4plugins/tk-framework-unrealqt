@@ -3,9 +3,9 @@
 # file included in this repository.
 
 """
-Framework containing PySide2 distributions for the Unreal engine
+Framework containing PySide distributions for the Unreal engine
 
-Because Unreal does not include PySide2/Qt distributions but does use its own
+Because Unreal does not include PySide/Qt distributions but does use its own
 version of Python, we have to distribute full versions for the engine to function.
 """
 
@@ -31,15 +31,15 @@ class UnrealQtFramework(sgtk.platform.Framework):
         Something similar to what `virtualenv` does is done when this framework is
         loaded by SG TK.
         """
-        self.log_debug("%s: Initializing UnrealQtFramework..." % self)
+        self.logger.debug("%s: Initializing UnrealQtFramework..." % self)
 
         # Check if PySide is already available, do nothing if it is the case
         try:
             from sgtk.platform.qt import QtCore  # noqa
-            self.log_debug("Qt is already available, not activating any custom package.")
+            self.logger.debug("Qt is already available, not activating any custom package.")
             return
         except ImportError as e:
-            self.log_debug("Qt is not available: %s, activating custom package." % e)
+            self.logger.debug("Qt is not available: %s, activating custom package." % e)
             pass
         # Remap the platform name to our names
         pname = self.platform_name()
@@ -53,13 +53,14 @@ class UnrealQtFramework(sgtk.platform.Framework):
         # Copied over from activate_this.py script which does not exist anymore
         # from Python 3.
         python_major = sys.version_info[0]  # 2 or 3
+        python_minor = sys.version_info[1]  # 6, 7, 8, etc
 
         base_path = os.path.realpath(
             os.path.join(
                 os.path.dirname(__file__),
                 "python",
                 "vendors",
-                "py%d" % python_major,
+                "py%d.%d" % (python_major, python_minor),
                 pname,
             )
         )
@@ -74,7 +75,7 @@ class UnrealQtFramework(sgtk.platform.Framework):
                     "lib"
                 )
             )
-            python_pattern = r"^python%d\.\d$" % python_major
+            python_pattern = r"^python%d\.\d+$" % python_major
             for folder in lib_folders:
                 if re.match(python_pattern, folder):
                     break
@@ -108,7 +109,7 @@ class UnrealQtFramework(sgtk.platform.Framework):
         sys.prefix = base_path
 
     def destroy_framework(self):
-        self.log_debug("%s: Destroying UnrealQtFramework..." % self)
+        self.logger.debug("%s: Destroying UnrealQtFramework..." % self)
 
     @classmethod
     def platform_name(cls):
