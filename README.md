@@ -4,17 +4,17 @@ This is a helper library designed to be used in
 conjunction with the [tk-unreal](https://github.com/ue4plugins/tk-unreal) engine.
 
 This framework contains hooks which can be re-used in configurations where the
-Unreal integration is needed, and PySide2 binaries needed to run the SG Toolkit
+Unreal integration is needed, and PySide binaries needed to run the SG Toolkit
 integration in Unreal.
 
 Please see the engine for more details.
 
-## The PySide2 libraries
+## The PySide libraries
 
-Binaries for PySide2 libraries for all platforms are not included in the
+Binaries for PySide libraries for all platforms are not included in the
 source tree and must be built before being able to use this framework.
 
-### Building the PySide2 libraries locally
+### Building the PySide libraries locally
 
 Use the [build_packages.sh](resources/build_packages.sh) script with the `-b` option to build and install 
 the packages specified in the [requirements.txt](resources/requirements.txt) file.
@@ -28,7 +28,7 @@ Options :
 The framework can be used with a local descriptor (e.g. dev or path) once the 
 binaries are build. 
 
-### Building the PySide2 libraries with Azure Pipelines
+### Building the PySide libraries with Azure Pipelines
 
 The [build_packages.sh](resources/build_packages.sh) script can be used with [Azure Pipelines](https://docs.microsoft.com/en-us/azure/devops/pipelines/get-started/pipelines-get-started?view=azure-devops) 
 to automatically build the packages each time a new version tag is added in Github.
@@ -41,7 +41,7 @@ You can use the provided [azure-pipelines.yml](azure-pipelines.yml) file to crea
 A [service connection to Github](https://docs.microsoft.com/en-us/azure/devops/pipelines/repos/github?view=azure-devops&tabs=yaml#permissions-needed-in-github-1)
  will have to be created if you don't already have one.
 
-The Azure pipeline builds the PySide2 libraries for Windows, Linux and Mac, and upload them to Github releases.
+The Azure pipeline builds the PySide libraries for Windows, Linux and Mac, and upload them to Github releases.
 
 <img width="512" alt="Github releases" src="https://user-images.githubusercontent.com/39291844/153920988-0dcb80d3-3c37-479d-8079-33496f8952f4.png">
 
@@ -56,8 +56,8 @@ frameworks:
      - {"name": "tk-framework-unrealqt", "version": "v1.x.x"}
 ```
 
-- If you're using a local descriptor (dev or path) you need to build the PySide2 libraries
-yourself. See [building the PySide2 libraries locally](#building-the-pyside2-libraries-locally).
+- If you're using a local descriptor (dev or path) you need to build the PySide libraries
+yourself. See [building the PySide libraries locally](#building-the-pyside2-libraries-locally).
 
 - If you're using a remote descriptor, just in time download must be added so these binaries are downloaded in SG TK bootstrap process. The provided [bootstrap.py](hooks/core/bootstrap.py) script implements just in time downloads from Github releases with a `git` or a `github_release` descriptor:
    - Copy the `hooks/core/bootstrap.py` file to your config `core/hooks/bootstrap.py`
