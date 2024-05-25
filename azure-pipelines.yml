@@ -24,18 +24,18 @@ jobs:
   strategy:
     matrix:
       # Define all the platform/python version we need
-      MacPython37:
+      MacPython311:
         platform: 'osx'  # Short name for us
-        imageName: 'macOS-10.15'
-        python.version: '3.7'
-      WinPython37:
+        imageName: 'macOS-latest'
+        python.version: '3.11'
+      WinPython311:
         platform: 'win' # Short name for us
-        imageName: 'windows-2019'
-        python.version: '3.7'
-      LinuxPython37:
+        imageName: 'windows-latest'
+        python.version: '3.11'
+      LinuxPython311:
         platform: 'linux'  # Short name for us
         imageName: 'ubuntu-latest'
-        python.version: '3.7'
+        python.version: '3.11'
     maxParallel: 1
 
   pool:
@@ -84,12 +84,9 @@ jobs:
     inputs:
       Contents: |
         .git
-        resources/packagevenv_osx_2
-        resources/packagevenv_osx_3
-        resources/packagevenv_windows_2
-        resources/packagevenv_windows_3
-        resources/packagevenv_linux_2
-        resources/packagevenv_linux_3
+        resources/packagevenv_osx_3.11
+        resources/packagevenv_windows_3.11
+        resources/packagevenv_linux_3.11
 
   # Archive files
   # Compress files into .7z, .tar.gz, or .zip

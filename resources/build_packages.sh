@@ -133,15 +133,20 @@ echo "Detecting Python version..."
 python_version=$($python_cmd --version 2>&1)
 # 2 or 3
 python_major_version=${python_version:7:1}
-if [ -z $python_major_version ];
+# Remove patch number from Python 3.9.17
+no_patch=${python_version%\.*}
+# 3.9
+python_major_minor=${no_patch:7}
+
+if [ -z $python_major_version ] || [ -z $python_major_minor ];
 then
    echo "Unable to detect python version, aborting"
    exit 1
 fi
 
-echo "Detected python version ${python_major_version} from ${python_version}"
+echo "Detected python version ${python_major_version} from ${python_version} (${python_major_minor})"
 
-packagevenv="packagevenv_${platform_name}_${python_major_version}"
+packagevenv="packagevenv_${platform_name}_${python_major_minor}"
 if [ ! -d $packagevenv ]; then
     if [ ${python_major_version} == 2 ];
     then
@@ -200,8 +205,8 @@ if [ $do_build == 1 ]; then
     fi
     # Copy packages to their shipping destination
     if [ -d ./${packagevenv} ]; then
-        mkdir -p ../python/vendors/py${python_major_version}
-        target="../python/vendors/py${python_major_version}/${platform_name}"
+        mkdir -p ../python/vendors/py${python_major_minor}
+        target="../python/vendors/py${python_major_minor}/${platform_name}"
         if [ -d $target ]; then
             echo "Deleting previous build in $target"
             # Clean up git but don't fail if there is nothing matching
