@@ -1,5 +1,9 @@
-# This file is provided by Epic Games, Inc. and is subject to the license
-# file included in this repository.
+# Copyright 2020 GPL Solutions, LLC.  All rights reserved.
+#
+# Use of this software is subject to the terms of the GPL Solutions license
+# agreement provided at the time of installation or download, or which otherwise
+# accompanies this software in either electronic or hard copy form.
+#
 
 """
 This hook is used override some of the functionality of the :class:`~sgtk.bootstrap.ToolkitManager`.
@@ -27,11 +31,11 @@ _SIX_IMPORT_WARNING = (
 
 class Bootstrap(get_hook_baseclass()):
     """
-    Override the bootstrap core hook to cache some bundles ourselves.
+    Override the bootstrap core hook to cache ourself some bundles.
     http://developer.shotgunsoftware.com/tk-core/core.html#bootstrap.Bootstrap
     """
-    # List of github repos for which we download releases, with a github token to
-    # do the download if the repo is private
+    # List of github repos for which we download releases, with a token to do
+    # the download
     _download_release_from_github = [
         ("ue4plugins/tk-framework-unrealqt", ""),
         ("GPLgithub/tk-framework-unrealqt", ""),
@@ -97,7 +101,7 @@ class Bootstrap(get_hook_baseclass()):
             if self.shotgun.config.proxy_handler:
                 # Re-use proxy settings from the Shotgun connection
                 opener = url2.build_opener(
-                    self.parent.shotgun.config.proxy_handler,
+                    self.shotgun.config.proxy_handler,
                 )
                 url2.install_opener(opener)
 
@@ -229,7 +233,7 @@ class Bootstrap(get_hook_baseclass()):
         if self.shotgun.config.proxy_handler:
             # Re-use proxy settings from the Shotgun connection
             opener = url2.build_opener(
-                self.parent.shotgun.config.proxy_handler,
+                self.shotgun.config.proxy_handler,
                 auth_handler
             )
         else:
