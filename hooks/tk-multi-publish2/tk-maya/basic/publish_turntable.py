@@ -19,7 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from six.moves.urllib import parse
+from urllib import parse
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
@@ -40,9 +40,19 @@ class BrowsablePathWidget(QtGui.QFrame):
         self.combo_box.setEditable(True)
         self.combo_box.setMaxVisibleItems(10)
         # Prevent the QComboBox to get too big if the path is long.
-        self.combo_box.setSizeAdjustPolicy(
-            QtGui.QComboBox.AdjustToMinimumContentsLength
-        )
+        engine = sgtk.platform.current_engine()
+        # Note: it would be better to test for Qt4 or Qt5 so this
+        # wouldn't have to be changed when moving to new major
+        # releases of Qt, but has_qt4 and has_qt5 returns True
+        # even when PySide6 is being used.
+        if engine.has_qt6:
+            self.combo_box.setSizeAdjustPolicy(
+                QtGui.QComboBox.AdjustToMinimumContentsLengthWithIcon
+            )
+        else:  # Qt4 or Qt5
+            self.combo_box.setSizeAdjustPolicy(
+                QtGui.QComboBox.AdjustToMinimumContentsLength
+            )
 
         self.open_button = QtGui.QToolButton()
         icon = QtGui.QIcon()
@@ -92,7 +102,7 @@ class BrowsablePathWidget(QtGui.QFrame):
 
         :returns: An utf-8 encoded string.
         """
-        return six.ensure_str(self.combo_box.currentText())
+        return self.combo_box.currentText()
 
     def set_path(self, path):
         """
@@ -540,14 +550,14 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # Please note that we don't have to return all settings here, just the
         # settings which are editable in the UI.
         settings = {
-            "Unreal Engine Version": six.ensure_str(widget.unreal_setup_widget.unreal_version),
-            "Unreal Engine Path": six.ensure_str(widget.unreal_setup_widget.unreal_path),
+            "Unreal Engine Version": widget.unreal_setup_widget.unreal_version,
+            "Unreal Engine Path": widget.unreal_setup_widget.unreal_path,
             # Get the project path evaluated from the template or the value which
             # was manually set.
-            "Unreal Project Path": six.ensure_str(widget.unreal_setup_widget.unreal_project_path),
-            "Turntable Map Path": six.ensure_str(widget.unreal_turntable_map_widget.text()),
-            "Sequence Path": six.ensure_str(widget.unreal_sequence_widget.text()),
-            "Turntable Assets Path": six.ensure_str(widget.unreal_turntable_asset_widget.text()),
+            "Unreal Project Path": widget.unreal_setup_widget.unreal_project_path,
+            "Turntable Map Path": widget.unreal_turntable_map_widget.text(),
+            "Sequence Path": widget.unreal_sequence_widget.text(),
+            "Turntable Assets Path": widget.unreal_turntable_asset_widget.text(),
             # "HDR Path": widget.hdr_image_template_widget.get_path(),
             # "Start Frame": widget.start_frame_spin_box.value(),
             # "End Frame": widget.end_frame_spin_box.value(),
@@ -1083,13 +1093,13 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # "environment can only contain strings" erors will happen.
         extra_env = {
             # The FBX to import into Unreal
-            "UNREAL_SG_FBX_OUTPUT_PATH": six.ensure_str(fbx_output_path),
+            "UNREAL_SG_FBX_OUTPUT_PATH": fbx_output_path,
             # The Unreal content browser folder where the asset will be imported into
-            "UNREAL_SG_ASSETS_PATH": six.ensure_str(turntable_assets_path),
+            "UNREAL_SG_ASSETS_PATH": turntable_assets_path,
             # The Unreal turntable map to duplicate where the asset will be instantiated into
-            "UNREAL_SG_MAP_PATH": six.ensure_str(turntable_map_path),
-            "UNREAL_SG_SEQUENCE_PATH": six.ensure_str(sequence_path),
-            "UNREAL_SG_MOVIE_OUTPUT_PATH": six.ensure_str(publish_path),
+            "UNREAL_SG_MAP_PATH": turntable_map_path,
+            "UNREAL_SG_SEQUENCE_PATH": sequence_path,
+            "UNREAL_SG_MOVIE_OUTPUT_PATH": publish_path,
         }
         self.logger.info("Adding %s to the environment" % extra_env)
         run_env.update(extra_env)
