@@ -1,9 +1,5 @@
-# Copyright 2020 GPL Solutions, LLC.  All rights reserved.
-#
-# Use of this software is subject to the terms of the GPL Solutions license
-# agreement provided at the time of installation or download, or which otherwise
-# accompanies this software in either electronic or hard copy form.
-#
+# This file is provided by Epic Games, Inc. and is subject to the license
+# file included in this repository.
 
 """
 This hook is used override some of the functionality of the :class:`~sgtk.bootstrap.ToolkitManager`.
@@ -34,8 +30,8 @@ class Bootstrap(get_hook_baseclass()):
     Override the bootstrap core hook to cache ourself some bundles.
     http://developer.shotgunsoftware.com/tk-core/core.html#bootstrap.Bootstrap
     """
-    # List of github repos for which we download releases, with a token to do
-    # the download
+    # List of github repos for which we download releases, with a github token to
+    # do the download if the repo is private
     _download_release_from_github = [
         ("ue4plugins/tk-framework-unrealqt", ""),
         ("GPLgithub/tk-framework-unrealqt", ""),
