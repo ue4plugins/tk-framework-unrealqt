@@ -7,7 +7,6 @@ import maya.cmds as cmds
 import maya.mel as mel
 import sgtk
 from sgtk.util.filesystem import ensure_folder_exists
-from tank_vendor import six
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
@@ -363,13 +362,9 @@ class MayaFBXPublishPlugin(HookBaseClass):
 def _session_path():
     """
     Return the path to the current session
-    :return:
+    :return: A string or ``None``.
     """
     path = cmds.file(query=True, sn=True)
-
-    if path is not None:
-        path = six.ensure_str(path)
-
     return path
 
 

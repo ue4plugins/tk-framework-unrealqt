@@ -24,6 +24,18 @@ jobs:
   strategy:
     matrix:
       # Define all the platform/python version we need
+      MacPython39:
+        platform: 'osx'  # Short name for us
+        imageName: 'macOS-latest'
+        python.version: '3.9'
+      WinPython39:
+        platform: 'win' # Short name for us
+        imageName: 'windows-latest'
+        python.version: '3.9'
+      LinuxPython39:
+        platform: 'linux'  # Short name for us
+        imageName: 'ubuntu-latest'
+        python.version: '3.9'
       MacPython311:
         platform: 'osx'  # Short name for us
         imageName: 'macOS-latest'
