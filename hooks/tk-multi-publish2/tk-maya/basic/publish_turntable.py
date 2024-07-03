@@ -980,7 +980,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         publish_path = self.get_publish_path(settings, item)
         publish_path = os.path.normpath(publish_path)
 
-        # This plugin publishes a turntable movie to Shotgun
+        # This plugin publishes a turntable movie to SG
         # These are the steps needed to do that
 
         # =======================
