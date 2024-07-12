@@ -19,7 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from six.moves.urllib import parse
+from urllib import parse
 
 HookBaseClass = sgtk.get_hook_baseclass()
 
@@ -40,9 +40,19 @@ class BrowsablePathWidget(QtGui.QFrame):
         self.combo_box.setEditable(True)
         self.combo_box.setMaxVisibleItems(10)
         # Prevent the QComboBox to get too big if the path is long.
-        self.combo_box.setSizeAdjustPolicy(
-            QtGui.QComboBox.AdjustToMinimumContentsLength
-        )
+        engine = sgtk.platform.current_engine()
+        # Note: it would be better to test for Qt4 or Qt5 so this
+        # wouldn't have to be changed when moving to new major
+        # releases of Qt, but has_qt4 and has_qt5 returns True
+        # even when PySide6 is being used.
+        if engine.has_qt6:
+            self.combo_box.setSizeAdjustPolicy(
+                QtGui.QComboBox.AdjustToMinimumContentsLengthWithIcon
+            )
+        else:  # Qt4 or Qt5
+            self.combo_box.setSizeAdjustPolicy(
+                QtGui.QComboBox.AdjustToMinimumContentsLength
+            )
 
         self.open_button = QtGui.QToolButton()
         icon = QtGui.QIcon()
@@ -92,7 +102,7 @@ class BrowsablePathWidget(QtGui.QFrame):
 
         :returns: An utf-8 encoded string.
         """
-        return six.ensure_str(self.combo_box.currentText())
+        return self.combo_box.currentText()
 
     def set_path(self, path):
         """
@@ -540,14 +550,14 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # Please note that we don't have to return all settings here, just the
         # settings which are editable in the UI.
         settings = {
-            "Unreal Engine Version": six.ensure_str(widget.unreal_setup_widget.unreal_version),
-            "Unreal Engine Path": six.ensure_str(widget.unreal_setup_widget.unreal_path),
+            "Unreal Engine Version": widget.unreal_setup_widget.unreal_version,
+            "Unreal Engine Path": widget.unreal_setup_widget.unreal_path,
             # Get the project path evaluated from the template or the value which
             # was manually set.
-            "Unreal Project Path": six.ensure_str(widget.unreal_setup_widget.unreal_project_path),
-            "Turntable Map Path": six.ensure_str(widget.unreal_turntable_map_widget.text()),
-            "Sequence Path": six.ensure_str(widget.unreal_sequence_widget.text()),
-            "Turntable Assets Path": six.ensure_str(widget.unreal_turntable_asset_widget.text()),
+            "Unreal Project Path": widget.unreal_setup_widget.unreal_project_path,
+            "Turntable Map Path": widget.unreal_turntable_map_widget.text(),
+            "Sequence Path": widget.unreal_sequence_widget.text(),
+            "Turntable Assets Path": widget.unreal_turntable_asset_widget.text(),
             # "HDR Path": widget.hdr_image_template_widget.get_path(),
             # "Start Frame": widget.start_frame_spin_box.value(),
             # "End Frame": widget.end_frame_spin_box.value(),
@@ -970,7 +980,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         publish_path = self.get_publish_path(settings, item)
         publish_path = os.path.normpath(publish_path)
 
-        # This plugin publishes a turntable movie to Shotgun
+        # This plugin publishes a turntable movie to FPTR
         # These are the steps needed to do that
 
         # =======================
@@ -978,7 +988,14 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # The FBX will be exported to a temp folder
         # Another folder can be specified as long as the name has no spaces
         # Spaces are not allowed in command line Unreal Python args
-        temp_folder = tempfile.mkdtemp(suffix="temp_unreal_shotgun")
+
+        # Set a base temp dir on Windows to avoid having
+        # the user name in the temp path which can include
+        # "." e.g. firstname.name and makes UE crashes
+        base_temp_dir = None
+        if sys.platform == "win32":
+            base_temp_dir = r"C:\Temp"
+        temp_folder = tempfile.mkdtemp(suffix="temp_unreal_shotgun", dir=base_temp_dir)
         # Store the temp folder path on the item for cleanup in finalize
         item.local_properties["temp_folder"] = temp_folder
         fbx_folder = temp_folder
@@ -1033,7 +1050,7 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # Use the unreal_setup_turntable to do this in Unreal
         self.logger.info("Setting up Unreal turntable project...")
         # Copy the Unreal project in a temp location so we can modify it
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = tempfile.mkdtemp(dir=base_temp_dir)
         project_path, project_file = os.path.split(unreal_project_path)
         project_folder = os.path.basename(project_path)
         temp_project_dir = os.path.join(temp_dir, project_folder)
@@ -1083,13 +1100,13 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # "environment can only contain strings" erors will happen.
         extra_env = {
             # The FBX to import into Unreal
-            "UNREAL_SG_FBX_OUTPUT_PATH": six.ensure_str(fbx_output_path),
+            "UNREAL_SG_FBX_OUTPUT_PATH": fbx_output_path,
             # The Unreal content browser folder where the asset will be imported into
-            "UNREAL_SG_ASSETS_PATH": six.ensure_str(turntable_assets_path),
+            "UNREAL_SG_ASSETS_PATH": turntable_assets_path,
             # The Unreal turntable map to duplicate where the asset will be instantiated into
-            "UNREAL_SG_MAP_PATH": six.ensure_str(turntable_map_path),
-            "UNREAL_SG_SEQUENCE_PATH": six.ensure_str(sequence_path),
-            "UNREAL_SG_MOVIE_OUTPUT_PATH": six.ensure_str(publish_path),
+            "UNREAL_SG_MAP_PATH": turntable_map_path,
+            "UNREAL_SG_SEQUENCE_PATH": sequence_path,
+            "UNREAL_SG_MOVIE_OUTPUT_PATH": publish_path,
         }
         self.logger.info("Adding %s to the environment" % extra_env)
         run_env.update(extra_env)
@@ -1581,11 +1598,30 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
             )
         )
 
-    def _copy_work_to_publish(self, settings, item):
+    def _copy_to_publish(self, settings, item):
         """
-        Override base implementation to do nothing.
+        Override base implementation to do nothing
+        since we're not copying a file but rendering
+        directly to the publish location.
         """
         pass
+
+    def _copy_local_to_publish(self, settings, item):
+        """
+        Override base implementation to do nothing
+        since we're not copying a file but rendering
+        directly to the publish location.
+        """
+        pass
+
+    def _copy_work_to_publish(self, settings, item):
+        """
+        Override base implementation to do nothing
+        since we're not copying a file but rendering
+        directly to the publish location.
+        """
+        pass
+
 
 def _short_version(version):
     """
@@ -1598,7 +1634,7 @@ def _short_version(version):
     """
     parts = version.split(".", 2)
     if len(parts) > 2:
-         return ".".join(parts[:2])
+        return ".".join(parts[:2])
     return version
 
 

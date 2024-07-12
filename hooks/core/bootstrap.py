@@ -27,7 +27,7 @@ _SIX_IMPORT_WARNING = (
 
 class Bootstrap(get_hook_baseclass()):
     """
-    Override the bootstrap core hook to cache some bundles ourselves.
+    Override the bootstrap core hook to cache ourself some bundles.
     http://developer.shotgunsoftware.com/tk-core/core.html#bootstrap.Bootstrap
     """
     # List of github repos for which we download releases, with a github token to
@@ -97,7 +97,7 @@ class Bootstrap(get_hook_baseclass()):
             if self.shotgun.config.proxy_handler:
                 # Re-use proxy settings from the Shotgun connection
                 opener = url2.build_opener(
-                    self.parent.shotgun.config.proxy_handler,
+                    self.shotgun.config.proxy_handler,
                 )
                 url2.install_opener(opener)
 
@@ -229,7 +229,7 @@ class Bootstrap(get_hook_baseclass()):
         if self.shotgun.config.proxy_handler:
             # Re-use proxy settings from the Shotgun connection
             opener = url2.build_opener(
-                self.parent.shotgun.config.proxy_handler,
+                self.shotgun.config.proxy_handler,
                 auth_handler
             )
         else:
