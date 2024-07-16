@@ -994,7 +994,15 @@ class MayaUnrealTurntablePublishPlugin(HookBaseClass):
         # "." e.g. firstname.name and makes UE crashes
         base_temp_dir = None
         if sys.platform == "win32":
-            base_temp_dir = r"C:\Temp"
+            if os.path.isdir(r"C:\Temp"):
+                base_temp_dir = r"C:\Temp"
+            elif os.path.isdir(r"C:\Windows\Temp"):
+                base_temp_dir = r"C:\Windows\Temp"
+            else:
+                self.logger.warning(
+                    "Couldn't retrieve a temp base directory without "
+                    "the user name in it, using standard TEMP base"
+                )
         temp_folder = tempfile.mkdtemp(suffix="temp_unreal_shotgun", dir=base_temp_dir)
         # Store the temp folder path on the item for cleanup in finalize
         item.local_properties["temp_folder"] = temp_folder
